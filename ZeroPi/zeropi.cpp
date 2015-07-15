@@ -46,7 +46,7 @@ ZeroPi::~ZeroPi(){
 }
 
 // timer setup for pwm output
-void ZeroPi::timerSetup(void){
+void ZeroPi::begin(void){
 	uint32_t tmp;
 	
 	GCLK->CLKCTRL.reg = (uint16_t) (GCLK_CLKCTRL_CLKEN | GCLK_CLKCTRL_GEN_GCLK0 | GCLK_CLKCTRL_ID( GCM_TC4_TC5 )) ;
@@ -146,6 +146,39 @@ void ZeroPi::stepperMove(int s, int dir)
 
 
 /******* DC MOTORS *******************/ 
+void ZeroPi::motorInit(int slot){
+	int n;
+	for(n=0;n<SLOT_NUM_PINS;n++){
+		SET_OUTPUT(slots[slot].pin[n]);
+	}
+	stepperEnable(slot,0);
+	slots[slot].function = SLOT_MOTOR;
+}
+
+void ZeroPi::motorRun(int slot, int pwm1, int pwm2){
+	pwm1 = constrain(pwm1, -255, 255);
+	pwm2 = constrain(pwm2, -255, 255);
+	
+	if(pwm1>0){
+		WRITE(slots[slot].pin[MOTOR_AIN1],1);
+		WRITE(slots[slot].pin[MOTOR_AIN2],0);
+	}else{
+		WRITE(slots[slot].pin[MOTOR_AIN1],0);
+		WRITE(slots[slot].pin[MOTOR_AIN2],1);
+	}
+
+	if(pwm2>0){
+		WRITE(slots[slot].pin[MOTOR_BIN1],1);
+		WRITE(slots[slot].pin[MOTOR_BIN2],0);
+	}else{
+		WRITE(slots[slot].pin[MOTOR_BIN1],0);
+		WRITE(slots[slot].pin[MOTOR_BIN2],1);
+	}
+	slots[slot].value1 = abs(pwm1);
+	slots[slot].value2 = abs(pwm2);
+}
+
+
 
 /******* EXT IO ***********************/
 void ZeroPi::extInit(int index, int type){
@@ -194,9 +227,36 @@ pwm values for heater and some other frequent jobs.
 int test=0;
 void PWM_TIMER_VECTOR ()
 {
+    static uint8_t pwm_count = 0;
+	int n;
     PWM_TIMER->COUNT16.INTFLAG.bit.MC0 = 1;
+	if(test){
+		WRITE(A0,1);test=0;
+	}else{
+		WRITE(A0,0);test=1;
+	}
 
+	if(pwm_count==0){
+		for(n=0;n<NUM_SLOTS;n++){
+			if(ZeroPi::slots[n].function == SLOT_MOTOR){
+				if(ZeroPi::slots[n].value1!=0)
+					WRITE(ZeroPi::slots[n].pin[MOTOR_PWMA],1);
+				if(ZeroPi::slots[n].value2!=0)
+					WRITE(ZeroPi::slots[n].pin[MOTOR_PWMB],1);
+			}
+		}
+	}
 
+	for(n=0;n<NUM_SLOTS;n++){
+		if(ZeroPi::slots[n].function == SLOT_MOTOR){
+			if(ZeroPi::slots[n].value1==pwm_count)
+				WRITE(ZeroPi::slots[n].pin[MOTOR_PWMA],0);
+			if(ZeroPi::slots[n].value2==pwm_count)
+				WRITE(ZeroPi::slots[n].pin[MOTOR_PWMB],0);
+		}
+	}
+
+	pwm_count++; // max to 255
 }
 
 
@@ -209,11 +269,6 @@ void SERVO_COMPA_VECTOR ()
 	int extPinIndex = servoIndex/2;
 	int servoStage = servoIndex%2;
     SERVO_TIMER->COUNT16.INTFLAG.bit.MC0 = 1;
-	if(test){
-		WRITE(A0,1);test=0;
-	}else{
-		WRITE(A0,0);test=1;
-	}
 
 	if(servoStage==0){
 		if(ZeroPi::extios[extPinIndex].value>0){

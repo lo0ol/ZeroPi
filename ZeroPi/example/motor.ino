@@ -4,9 +4,11 @@ ZeroPi pi;
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(115200);
+  SET_OUTPUT(A0);
   pi.begin();
-  pi.extInit(0, EXT_SERVO);
-  pi.extWriteUs(0, 1350);
+  pi.motorInit(0);
+  pi.motorRun(0, 50, -200);
+
 }
 
 void loop() {

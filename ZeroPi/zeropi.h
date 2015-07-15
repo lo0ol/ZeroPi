@@ -26,9 +26,18 @@
 #define STEP_STP 0x4
 #define STEP_DIR 0x5
 
+// tb6612 pin define
+#define MOTOR_BIN2 0x0
+#define MOTOR_BIN1 0x1
+#define MOTOR_AIN1 0x2
+#define MOTOR_AIN2 0x3
+#define MOTOR_PWMB 0x4
+#define MOTOR_PWMA 0x5
+
 typedef struct _slot{
 	uint8_t function;
 	uint8_t pin[SLOT_NUM_PINS];
+	int value1,value2;
 }SLOT;
 
 typedef struct _extIO{
@@ -198,7 +207,7 @@ public:
     virtual ~ZeroPi();
 
 	// init slot to some type
-	void timerSetup(void);
+	void begin(void);
 	void slotSetup(int slot, int fun);
 	
 	// stepper related functions
@@ -209,7 +218,7 @@ public:
 
 	// dc motor related functions
 	void motorInit(int slot);
-	void motorRun(int slot, int pwm);
+	void motorRun(int slot, int pwm1, int pwm2);
 	
 	// extra io functions
 	void extInit(int index, int type);
