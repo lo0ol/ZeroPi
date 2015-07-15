@@ -37,7 +37,7 @@ EXTIO ZeroPi::extios[NUM_EXTIO]={
 
 
 ZeroPi::ZeroPi(){
-	timerSetup();
+
 }
 
 ZeroPi::~ZeroPi(){
@@ -149,18 +149,39 @@ void ZeroPi::stepperMove(int s, int dir)
 
 /******* EXT IO ***********************/
 void ZeroPi::extInit(int index, int type){
-
-
+	if(EXT_INPUT == type){
+		SET_INPUT(extios[index].pin);
+		extios[index].function = EXT_INPUT;
+	}else if(EXT_OUTPUT == type){
+		SET_OUTPUT(extios[index].pin);
+		extios[index].function = EXT_OUTPUT;
+	}else if(EXT_SERVO== type){
+		SET_OUTPUT(extios[index].pin);
+		extios[index].function = EXT_SERVO;
+	}
 }
 
 int ZeroPi::extRead(int index){
-
-
+	return READ(extios[index].pin);
 }
 
 void ZeroPi::extWrite(int index, int value){
+	WRITE(extios[index].pin,value);
+	extios[index].value = value;
+}
 
+void ZeroPi::extWriteUs(int index, int value){
+	value = constrain(value,500,2500);
+	extios[index].value = 	((BASEFREQ / 1000000) * value);
+}
 
+/***** Temperature Sensor ************/
+void ZeroPi::tempInit(int index){
+
+}
+
+uint32_t ZeroPi::tempRead(int index){
+	return analogRead(index);
 }
 
 
@@ -170,6 +191,7 @@ void ZeroPi::extWrite(int index, int value){
 This timer is called 3906 times per second. It is used to update
 pwm values for heater and some other frequent jobs. 
 */
+int test=0;
 void PWM_TIMER_VECTOR ()
 {
     PWM_TIMER->COUNT16.INTFLAG.bit.MC0 = 1;
@@ -180,13 +202,34 @@ void PWM_TIMER_VECTOR ()
 
 
 // Servo timer Interrupt handler
+static uint8_t servoIndex = 0;
 void SERVO_COMPA_VECTOR ()
 {
+    static uint32_t interval;
+	int extPinIndex = servoIndex/2;
+	int servoStage = servoIndex%2;
     SERVO_TIMER->COUNT16.INTFLAG.bit.MC0 = 1;
+	if(test){
+		WRITE(A0,1);test=0;
+	}else{
+		WRITE(A0,0);test=1;
+	}
 
-
-
-
+	if(servoStage==0){
+		if(ZeroPi::extios[extPinIndex].value>0){
+			if(ZeroPi::extios[extPinIndex].function == EXT_SERVO) WRITE(ZeroPi::extios[extPinIndex].pin,1);
+			interval = ZeroPi::extios[extPinIndex].value;
+		}else{
+			interval = SERVO2500US;
+		}		
+		SERVO_TIMER->COUNT16.CC[0].reg = interval;
+	}else{
+		if(ZeroPi::extios[extPinIndex].function == EXT_SERVO) WRITE(ZeroPi::extios[extPinIndex].pin,0);
+		SERVO_TIMER->COUNT16.CC[0].reg = (SERVO5000US - interval);
+	}
+	
+	servoIndex++;
+	if(servoIndex>(NUM_EXTIO*2-1)) servoIndex = 0;
 }
 
 

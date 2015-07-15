@@ -37,6 +37,7 @@ typedef struct _extIO{
 	uint32_t value;
 }EXTIO;
 
+
 // define for ext io silk print
 #define MO 23
 #define MI 22
@@ -44,6 +45,9 @@ typedef struct _extIO{
 #define SDA 32 // PA22
 #define SCL 33 // PA23
 
+// define Temperature IO
+#define TEMP0 A4
+#define TEMP1 A5
 
 /*
  * Pins descriptions
@@ -182,7 +186,7 @@ const PinDescription j18pinDescrip[]=
 #define PWM_TIMER_CHANNEL       0
 #define PWM_TIMER_IRQ           TC5_IRQn
 #define PWM_TIMER_VECTOR        TC5_Handler
-#define PWM_CLOCK_FREQ 			3906
+#define PWM_CLOCK_FREQ 			3906 //256us
 
 
 class ZeroPi
@@ -211,12 +215,12 @@ public:
 	void extInit(int index, int type);
 	int extRead(int index);
 	void extWrite(int index, int value);
-	void extAngle(int index, int us);
+	void extWriteUs(int index, int us);
 
 	
 	// temp sensor specified
 	void tempInit(int index);
-	float tempRead(int index);
+	uint32_t tempRead(int index);
 	
 	// mosfet control
 	void mosfetInit(void);
