@@ -46,6 +46,14 @@ typedef struct _extIO{
 	uint32_t value;
 }EXTIO;
 
+typedef enum _DRIVER {
+	A4982		= 0,
+	A4988		= 1,
+	DRV8825		= 2,
+	TB67S269	= 3,
+	TB67S109	= 4
+}DRIVER_t;
+
 
 // define for ext io silk print
 #define MO 23
@@ -182,21 +190,6 @@ const PinDescription j18pinDescrip[]=
                               PORT->Group[j18pinDescrip[pin].ulPort].OUTSET.reg = (uint32_t)(1<<j18pinDescrip[pin].ulPin) ;
 #define TOGGLE(pin) WRITE(pin,!READ(pin))
 
-#define BASEFREQ (48000000/8) // TC_CTRLA_PRESCALER_DIV8_Val
-#define SERVO_TIMER             TC4
-#define SERVO_TIMER_CHANNEL     0
-#define SERVO_TIMER_IRQ         TC4_IRQn
-#define SERVO_COMPA_VECTOR      TC4_Handler
-#define SERVO_CLOCK_FREQ        1000
-#define SERVO2500US             ((BASEFREQ / 1000000) * 2500)
-#define SERVO5000US             ((BASEFREQ / 1000000) * 5000)
-
-#define PWM_TIMER               TC5
-#define PWM_TIMER_CHANNEL       0
-#define PWM_TIMER_IRQ           TC5_IRQn
-#define PWM_TIMER_VECTOR        TC5_Handler
-#define PWM_CLOCK_FREQ 			3906 //256us
-
 
 class ZeroPi
 {
@@ -212,7 +205,7 @@ public:
 	
 	// stepper related functions
 	void stepperInit(int slot);
-	void stepperSetResolution(int slot, int res);
+	void stepperSetResolution(int s, int res, DRIVER_t type);
 	void stepperMove(int slot, int dir);
 	void stepperEnable(int slot, int en);
 
