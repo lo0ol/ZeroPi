@@ -13,7 +13,7 @@ SLOT ZeroPi::slots[NUM_SLOTS]={
 	},
 	{
 		SLOT_NULL,
-		{52,53,54,55,12,36}
+		{52,53,54,55,12,10}
 	},
 	{
 		SLOT_NULL,
@@ -57,7 +57,7 @@ void ZeroPi::slotSetup(int slot, int fun){
 	if(fun==SLOT_STEPPER){
 		stepperInit(slot);
 	}else if(fun==SLOT_MOTOR){
-		//motorInit(slot);
+		motorInit(slot);
 	}
 
 }
@@ -254,7 +254,7 @@ void ZeroPi::motorInit(int slot){
 	for(n=0;n<SLOT_NUM_PINS;n++){
 		SET_OUTPUT(slots[slot].pin[n]);
 	}
-//	stepperEnable(slot,0);
+
 	slots[slot].function = SLOT_MOTOR;
 }
 
