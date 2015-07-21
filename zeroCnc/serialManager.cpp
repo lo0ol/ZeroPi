@@ -25,7 +25,7 @@ static void serialThread( void *pvParameters ){
 		while(COMMPORT.available()){
 			c =COMMPORT.read();
 			rxBuf[rxIndex++] = c;
-			if(c==0x0a){
+			if(c=='\n'){
 				memcpy(msgBuf,rxBuf,rxIndex); // protect rxbuf
 				prim.len = rxIndex;
 				prim.msg = msgBuf;
@@ -48,10 +48,6 @@ void serialInit(void){
 	xTaskCreate( serialThread, "SERIAL", configMINIMAL_STACK_SIZE, NULL, 0, NULL );
 	
 }
-
-
-
-
 
 
 

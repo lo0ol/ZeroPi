@@ -26,7 +26,7 @@ typedef struct _move{
 	float decTime; // decelerate at
 	int dStepX,dStepY,dStepZ,dStepE;
 	int8_t motoXdir,motoYdir,motoZdir,motoEdir;
-	uint16_t stepDelayX,stepDelayY,stepDelayZ,stepDelayE;
+	uint32_t stepDelayX,stepDelayY,stepDelayZ,stepDelayE;
 	unsigned char occupied;
 	unsigned char checkEndStop;
 	unsigned char disableMotor; // disable motor when move finished
@@ -77,18 +77,72 @@ Move move[LENMOVELIST+1]; // the last slot for keep mem safe
 Move * curMove;
 Move * writeMove;
 
+static void initMoveChain()
+{
+	int i;
+	for(i=0;i<LENMOVELIST;i++){
+		memset(&move[i],0,sizeof(Move));
+		move[i].index = i;
+		move[i].next = &move[i+1];
+		move[i+1].last = &move[i];
+	}
+	move[0].last=&move[LENMOVELIST-1];
+	move[LENMOVELIST-1].next=&move[0];
+	curMove=&move[0];
+	writeMove = &move[1];
+}
+
 void enableSteppers(int en)
 {
+	pi.stepperEnable(STP_X, en);
+	pi.stepperEnable(STP_Y, en);
+	pi.stepperEnable(STP_Z, en);
+}
 
+void updateStepperDelays(Move * move)
+{
+	if(move->stepDelayX){
+		STP_X_TIMER->COUNT16.CC[0].reg = move->stepDelayX*6; // timer prescale to 6MHz
+		STP_X_TIMER->COUNT16.COUNT.reg = 0;
+	}
+	if(move->stepDelayY){
+		STP_Y_TIMER->COUNT16.CC[0].reg = move->stepDelayY*6;
+		STP_Y_TIMER->COUNT16.COUNT.reg = 0;
+	}
+	if(move->stepDelayZ){
+		STP_Z_TIMER->COUNT16.CC[0].reg = move->stepDelayZ*6;
+		STP_Z_TIMER->COUNT16.COUNT.reg = 0;
+	}
+}
 
+void checkMoveComlete()
+{
+	if(curMove->dStepX ==0 && curMove->dStepY ==0 && curMove->dStepZ ==0 && curMove->dStepE ==0){
+		Move * next;
+		if(curMove->disableMotor) enableSteppers(0);
+		curMove->occupied=0;
+		next = (Move*)curMove->next;
+		if(next!=writeMove){
+			if(next->occupied){
+				updateStepperDelays(next);
+			}
+			//printf("#%d\r\n",next->index);
+			COMMPORT.println(next->index);
+			curMove = next;
+		}
+	}
 }
 
 void setTimers(int en)
 {
 	if(en){
-		
+		STP_X_TIMER->COUNT16.CTRLA.reg |= TC_CTRLA_ENABLE;
+		STP_Y_TIMER->COUNT16.CTRLA.reg |= TC_CTRLA_ENABLE;
+		STP_Z_TIMER->COUNT16.CTRLA.reg |= TC_CTRLA_ENABLE;
 	}else{
-		
+		STP_X_TIMER->COUNT16.CTRLA.reg &= ~TC_CTRLA_ENABLE;
+		STP_Y_TIMER->COUNT16.CTRLA.reg &= ~TC_CTRLA_ENABLE;
+		STP_Z_TIMER->COUNT16.CTRLA.reg &= ~TC_CTRLA_ENABLE;		
 	}
 }
 
@@ -96,7 +150,7 @@ void setTimers(int en)
 void initStepperTimer()
 {
 	uint32_t tmp;
-	tmp = 48000000/8/8000; // 8k timer
+	tmp = 48000000/8/1000; // 1k timer
 	
 	GCLK->CLKCTRL.reg = (uint16_t) (GCLK_CLKCTRL_CLKEN | GCLK_CLKCTRL_GEN_GCLK0 | GCLK_CLKCTRL_ID( GCM_TC4_TC5 )) ;
 	while (GCLK->STATUS.bit.SYNCBUSY);
@@ -105,24 +159,59 @@ void initStepperTimer()
 	STP_X_TIMER->COUNT8.INTENSET.reg = TC_INTFLAG_MC(1);
 	STP_X_TIMER->COUNT16.CTRLA.reg |= TC_CTRLA_WAVEGEN_MFRQ;
 	STP_X_TIMER->COUNT16.CTRLA.reg |= (TC_CTRLA_PRESCALER_DIV8_Val << TC_CTRLA_PRESCALER_Pos);
-	STP_X_TIMER->COUNT16.CTRLA.reg |= TC_CTRLA_ENABLE;
+	//STP_X_TIMER->COUNT16.CTRLA.reg |= TC_CTRLA_ENABLE;
+	NVIC_EnableIRQ( STP_X_TIMER_IRQ) ;
 
 	STP_Y_TIMER->COUNT16.CC[0].reg = (tmp & 0xffff);
 	STP_Y_TIMER->COUNT8.INTENSET.reg = TC_INTFLAG_MC(1);
 	STP_Y_TIMER->COUNT16.CTRLA.reg |= TC_CTRLA_WAVEGEN_MFRQ;
 	STP_Y_TIMER->COUNT16.CTRLA.reg |= (TC_CTRLA_PRESCALER_DIV8_Val << TC_CTRLA_PRESCALER_Pos);
-	STP_Y_TIMER->COUNT16.CTRLA.reg |= TC_CTRLA_ENABLE;
+	//STP_Y_TIMER->COUNT16.CTRLA.reg |= TC_CTRLA_ENABLE;	
+	NVIC_EnableIRQ( STP_Y_TIMER_IRQ) ;
 
-	GCLK->CLKCTRL.reg = (uint16_t) (GCLK_CLKCTRL_CLKEN | GCLK_CLKCTRL_GEN_GCLK0 | GCLK_CLKCTRL_ID( GCM_TC6_TC7 ));
+	GCLK->CLKCTRL.reg = (uint16_t) (GCLK_CLKCTRL_CLKEN | GCLK_CLKCTRL_GEN_GCLK0 | GCLK_CLKCTRL_ID( GCM_TCC2_TC3 )) ;
 	while (GCLK->STATUS.bit.SYNCBUSY);
 	// todo: how to enable timer 6 7 in arduino ide
 	STP_Z_TIMER->COUNT16.CC[0].reg = (tmp & 0xffff);
 	STP_Z_TIMER->COUNT8.INTENSET.reg = TC_INTFLAG_MC(1);
 	STP_Z_TIMER->COUNT16.CTRLA.reg |= TC_CTRLA_WAVEGEN_MFRQ;
 	STP_Z_TIMER->COUNT16.CTRLA.reg |= (TC_CTRLA_PRESCALER_DIV8_Val << TC_CTRLA_PRESCALER_Pos);
-	STP_Z_TIMER->COUNT16.CTRLA.reg |= TC_CTRLA_ENABLE;
+	//STP_Z_TIMER->COUNT16.CTRLA.reg |= TC_CTRLA_ENABLE;	
+	NVIC_EnableIRQ( STP_Z_TIMER_IRQ) ;
 
 }
+
+
+// X
+void STP_X_TIMER_VECTOR(void){
+    STP_X_TIMER->COUNT16.INTFLAG.bit.MC0 = 1;
+	if(cnc.isMoving && curMove->dStepX>0){
+		pi.stepperMove(STP_X,curMove->motoXdir);
+		curMove->dStepX-=1;
+	}
+	checkMoveComlete();
+}
+
+// y
+void STP_Y_TIMER_VECTOR(void){
+    STP_Y_TIMER->COUNT16.INTFLAG.bit.MC0 = 1;
+	if(cnc.isMoving && curMove->dStepY>0){
+		pi.stepperMove(STP_Y,curMove->motoYdir);
+		curMove->dStepY-=1;
+	}
+	checkMoveComlete();
+}
+
+// z
+void STP_Z_TIMER_VECTOR(void){
+    STP_Z_TIMER->COUNT16.INTFLAG.bit.MC0 = 1;
+	if(cnc.isMoving && curMove->dStepZ>0){
+		pi.stepperMove(STP_Z,curMove->motoZdir);
+		curMove->dStepZ-=1;
+	}
+	checkMoveComlete();
+}
+
 
 void initMove(Move * move)
 {
@@ -134,6 +223,7 @@ void startMoving(void)
 	if(cnc.isMoving==1) return;
 	enableSteppers(1);
 	cnc.isMoving = 1;
+	updateStepperDelays(curMove);
 	setTimers(1);
 }
 
@@ -150,35 +240,36 @@ void prepareMove(float tarX, float tarY, float tarZ, float tarE, float feedRate)
 	float dTx,dTy,dTz,dTe;
 	float minStpSpdX,minStpSpdY,minStpSpdZ,minStpSpdE;
 
-	if(feedRate!=NAN)
+	if(!isnan(feedRate))
 		cnc.feedRate = feedRate;
 	cnc.tarX = cnc.curX;
 	cnc.tarY = cnc.curY;
 	cnc.tarZ = cnc.curZ;
 	cnc.tarE = cnc.curE;
 	if(cnc.cordType == COORD_RELATIVE){
-		if(tarX!=NAN) cnc.tarX = cnc.curX+tarX;
-		if(tarY!=NAN) cnc.tarY = cnc.curY+tarY;
-		if(tarZ!=NAN) cnc.tarZ = cnc.curZ+tarZ;
-		if(tarE!=NAN) cnc.tarE = cnc.curE+tarE;
+		if(!isnan(tarX)) cnc.tarX = cnc.curX+tarX;
+		if(!isnan(tarY)) cnc.tarY = cnc.curY+tarY;
+		if(!isnan(tarZ)) cnc.tarZ = cnc.curZ+tarZ;
+		if(!isnan(tarE)) cnc.tarE = cnc.curE+tarE;
 	}else{
-		if(tarX!=NAN) cnc.tarX = tarX;
-		if(tarY!=NAN) cnc.tarY = tarY;
-		if(tarZ!=NAN) cnc.tarZ = tarZ;
-		if(tarE!=NAN) cnc.tarE = tarE;
+		if(!isnan(tarX)) cnc.tarX = tarX;
+		if(!isnan(tarY)) cnc.tarY = tarY;
+		if(!isnan(tarZ)) cnc.tarZ = tarZ;
+		if(!isnan(tarE)) cnc.tarE = tarE;
 	}
 	dx = cnc.tarX - cnc.curX;
 	dy = cnc.tarY - cnc.curY;
 	dz = cnc.tarZ - cnc.curZ;
 	de = cnc.tarE - cnc.curE;
 	// segmenlize delta moves
-	distance = sqrt(dx*dx+dy*dy+dz*dz);
+	distance = sqrtf(dx*dx+dy*dy+dz*dz);
 	numSeg = (int)(distance/SEGLEN)+1;
 	dx = dx/numSeg;
 	dy = dy/numSeg;
 	dz = dz/numSeg;
 	de = de/numSeg;
 	//printf("\r\n---M %f %d---\r\n",distance,numSeg);
+	COMMPORT.print("M ");COMMPORT.print(distance);COMMPORT.print(" ");COMMPORT.println(numSeg);
 
 	for(i=0;i<numSeg;i++){
 
@@ -214,6 +305,7 @@ void prepareMove(float tarX, float tarY, float tarZ, float tarE, float feedRate)
 		writeMove->motoEdir = deStep>0?cnc.eDir:-cnc.eDir;
 		
 		// sync move
+		// us between steps
 		writeMove->stepDelayX = dTmax/writeMove->dStepX;
 		writeMove->stepDelayY = dTmax/writeMove->dStepY;
 		writeMove->stepDelayZ = dTmax/writeMove->dStepZ;
@@ -251,15 +343,38 @@ void cncEchoVersion(void){
 }
 
 void cncInit(void){
+
+	// setup on board resource
 	pi.begin();
 	pi.slotSetup(STP_X,SLOT_STEPPER); // X
 	pi.slotSetup(STP_Y,SLOT_STEPPER); // Y
 	pi.slotSetup(STP_Z,SLOT_STEPPER); // Z
+	pi.slotSetup(SPINDDLE,SLOT_MOTOR); // spinddle
 
-	pi.stepperSetResolution(0,16,DRV8825);
-	pi.stepperSetResolution(1,16,DRV8825);
+	pi.stepperSetResolution(STP_X,16,DRV8825);
+	pi.stepperSetResolution(STP_Y,16,DRV8825);
+	pi.stepperSetResolution(STP_Z,16,DRV8825);
 
+	// init data struct
+	initMoveChain();
+	initStepperTimer();
 
+	// init machine parameters
+	cnc.feedRate = 30;
+	cnc.xDir = 1;
+	cnc.yDir = 1;
+	cnc.zDir = 1;
+	cnc.eDir = 1;
+	cnc.maxFeedRateX = 50.0f;
+	cnc.maxFeedRateY = 50.0f;
+	cnc.maxFeedRateZ = 50.0f;
+	cnc.maxFeedRateE = 45.0f;
+	
+	cnc.stpPerUnitX = 80;
+	cnc.stpPerUnitY = 80;
+	cnc.stpPerUnitZ = 80;
+	cnc.stpPerUnitE = 95;
+	
 	
 }
 
