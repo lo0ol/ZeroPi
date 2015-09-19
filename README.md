@@ -2,7 +2,7 @@
 ### What is ZeroPi
 ZeroPi is based on official arduino zero but changed the mcu to SAMD21J18 to support more io pins. 
 
-![ZeroPi](https://cloud.githubusercontent.com/assets/5137367/8696085/09a5d84a-2b1c-11e5-9ee3-dd70ae71ed63.jpg)
+![ZeroPi](https://cloud.githubusercontent.com/assets/5137367/9974366/3bd72c08-5ebe-11e5-9c1a-a528e4e93c36.png)
 
 *ZeroPi stack on Raspberry Pi*
 ## Resource
