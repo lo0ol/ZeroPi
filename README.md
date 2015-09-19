@@ -15,6 +15,10 @@ ZeroPi is based on official arduino zero but changed the mcu to SAMD21J18 to sup
  2 x temperature sensor input
  
  11 x extension genernal io or servo driver
+ 
+## The CMSIS-DAP debugger
+![CMSIS_DAP](https://cloud.githubusercontent.com/assets/5137367/9974378/8188e3f4-5ebe-11e5-80f0-a2bc81770408.png)
+
 
 ## Get Start
 1. Install [Arduino IDE](http://arduino.cc) , version>=1.6.5
